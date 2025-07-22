@@ -10,16 +10,26 @@
             <form method="POST">
               {{ form.hidden_tag() }}
               <div class="mb-3">
-                {{ form.username.label }} {{ form.username() }}
-              </div>
-              <div class="mb-3">{{ form.email.label }} {{ form.email() }}</div>
-              <div class="mb-3">
-                {{ form.password.label }} {{ form.password() }}
+                {{
+                render_field(form.username,placeholder="ユーザー名",class="form-control
+                form-control-lg") }}
               </div>
               <div class="mb-3">
-                {{ form.pass_confirm.label }} {{ form.pass_confirm() }}
+                {{
+                render_field(form.email,placeholder="メールアドレス",class="form-control
+                form-control-lg") }}
               </div>
-              {{ form.submit() }}
+              <div class="mb-3">
+                {{
+                render_field(form.password,placeholder="パスワード",class="form-control
+                form-control-lg") }}
+              </div>
+              <div class="mb-3">
+                {{
+                render_field(form.pass_confirm,placeholder="パスワード（確認）",class="form-control
+                form-control-lg") }}
+              </div>
+              {{ form.submit(class="btn btn-outline-light w-100") }}
             </form>
           </div>
         </div>
