@@ -102,7 +102,8 @@ def register():
 
 @app.route("/user_maintenance")
 def user_maintenance():
-    return render_template("user_maintenance.html")
+    users = User.query.order_by(User.id).all()
+    return render_template("user_maintenance.html", users=users)
 
 
 if __name__ == "__main__":

@@ -39,14 +39,16 @@
               </tr>
             </thead>
             <tbody>
+              {% for user in users %}
               <tr>
-                <td>ID</td>
-                <td>{{ session['username']}}</td>
-                <td>{{ session['email']}}</td>
-                <td>管理者</td>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.administrator }}</td>
                 <td><a href="#">ブログ投稿数</a></td>
                 <td><a href="#" class="btn btn-secondary"> 変更 </a></td>
               </tr>
+              {% endfor %}
             </tbody>
           </table>
         </div>
