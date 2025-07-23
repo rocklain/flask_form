@@ -1,6 +1,6 @@
 from flask import Flask, render_template, url_for, redirect, session, flash
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
+from wtforms import ValidationError, StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo
 
 from sqlalchemy import event
@@ -82,6 +82,14 @@ class RegistrationForm(FlaskForm):
     pass_confirm = PasswordField('パスワード（確認）', validators=[DataRequired()])
     submit = SubmitField('登録')
 
+    def validate_username(self, field):
+        if User.query.filter_by(username=field.data).first():
+            raise ValidationError('入力されたユーザー名は既に使われています。')
+    
+    def validate_email(self,field):
+        if User.query.filter_by(email=field.data).first():
+            raise ValidationError('入力されたメールアドレスは既に登録されています。')
+
 
 @app.route('/register', methods=["GET", "POST"])
 def register():
@@ -94,7 +102,7 @@ def register():
                     password_hash=form.password.data, administrator="0")
         db.session.add(user)
         db.session.commit()
-        
+
         flash('ユーザーが登録されました')
         return redirect(url_for("user_maintenance"))
     return render_template("register.html", form=form)
