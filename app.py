@@ -2,7 +2,7 @@ from flask import Flask, render_template, url_for, redirect, session, flash, req
 from flask_wtf import FlaskForm
 from wtforms import ValidationError, StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo
-from flask_login import LoginManager, UserMixin, login_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from sqlalchemy import event
@@ -29,6 +29,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+def localize_callback(*args,**kwargs):
+    return 'このページにアクセスするにはログインが必要です'
+login_manager.localize_callback = localize_callback
+
 
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
@@ -52,10 +56,10 @@ class User(db.Model, UserMixin):
     administrator = db.Column(db.String(1))
     post = db.relationship('BlogPost', backref='author', lazy='dynamic')
 
-    def __init__(self, email, username, password_hash, administrator):
+    def __init__(self, email, username, password, administrator):
         self.email = email
         self.username = username
-        self.password_hash = password_hash
+        self.password = password
         self.administrator = administrator
 
     def __repr__(self):
@@ -63,6 +67,14 @@ class User(db.Model, UserMixin):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    @property
+    def password(self):
+        raise AttributeError('password is not a readable attribute')
+    
+    @password.setter
+    def password(self,password):
+        self.password_hash = generate_password_hash(password)
 
 
 class BlogPost(db.Model):
@@ -152,8 +164,14 @@ def login():
         
     return render_template('login.html', form=form)
 
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=["GET", "POST"])
+@login_required
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
@@ -161,7 +179,7 @@ def register():
         # session["username"] = form.username.data
         # session["password"] = form.password.data
         user = User(email=form.email.data, username=form.username.data,
-                    password_hash=form.password.data, administrator="0")
+                    password=form.password.data, administrator="0")
         db.session.add(user)
         db.session.commit()
 
@@ -171,6 +189,7 @@ def register():
 
 
 @app.route("/user_maintenance")
+@login_required
 def user_maintenance():
     page = request.args.get('page', 1, type=int)
     users = User.query.order_by(User.id).paginate(page=page, per_page=10)
@@ -178,6 +197,7 @@ def user_maintenance():
 
 
 @app.route('/<int:user_id>/account', methods=['GET', 'POST'])
+@login_required
 def account(user_id):
     user = User.query.get_or_404(user_id)
     form = UpdateUserForm(user_id)
@@ -185,7 +205,7 @@ def account(user_id):
         user.username = form.username.data
         user.email = form.email.data
         if form.password.data:
-            user.password_hash = form.password.data
+            user.password = form.password.data
         db.session.commit()
         flash('ユーザーアカウントが更新されました')
         return redirect(url_for('user_maintenance'))
@@ -196,6 +216,7 @@ def account(user_id):
 
 
 @app.route('/<int:user_id>/delete', methods=['GET', 'POST'])
+@login_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
