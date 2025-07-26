@@ -91,6 +91,28 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('入力されたメールアドレスは既に登録されています。')
 
 
+class UpdateUserForm(FlaskForm):
+    email = StringField('メールアドレス', validators=[
+                        DataRequired(), Email(message="正しいメールアドレスを入力してください")])
+    username = StringField('ユーザー名', validators=[DataRequired()])
+    password = PasswordField('パスワード', validators=[EqualTo(
+        'pass_confirm', message='パスワードが一致していません')])
+    pass_confirm = PasswordField('パスワード（確認）')
+    submit = SubmitField('更新')
+
+    def __init__(self, user_id, *args, **kwargs):
+        super(UpdateUserForm, self).__init__(*args, **kwargs)
+        self.id = user_id
+
+    def validate_email(self, field):
+        if User.query.filter(User.id != self.id).filter_by(email=field.data).first():
+            raise ValidationError('入力されたメールアドレスは既に登録されています。')
+
+    def validate_username(self, field):
+        if User.query.filter(User.id != self.id).filter_by(username=field.data).first():
+            raise ValidationError('入力されたユーザー名は既に登録されています。')
+
+
 @app.route('/register', methods=["GET", "POST"])
 def register():
     form = RegistrationForm()
@@ -113,6 +135,24 @@ def user_maintenance():
     page = request.args.get('page', 1, type=int)
     users = User.query.order_by(User.id).paginate(page=page, per_page=10)
     return render_template("user_maintenance.html", users=users)
+
+
+@app.route('/<int:user_id>/account', methods=['GET', 'POST'])
+def account(user_id):
+    user = User.query.get_or_404(user_id)
+    form = UpdateUserForm(user_id)
+    if form.validate_on_submit():
+        user.username = form.username.data
+        user.email = form.email.data
+        if form.password.data:
+            user.password_hash = form.password.data
+        db.session.commit()
+        flash('ユーザーアカウントが更新されました')
+        return redirect(url_for('user_maintenance'))
+    elif request.method == 'GET':
+        form.username.data = user.username
+        form.email.data = user.email
+    return render_template('account.html', form=form)
 
 
 if __name__ == "__main__":
