@@ -154,6 +154,13 @@ def account(user_id):
         form.email.data = user.email
     return render_template('account.html', form=form)
 
+@app.route('/<int:user_id>/delete', methods=['GET', 'POST'])
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash('ユーザーアカウントが削除されました')
+    return redirect(url_for('user_maintenance'))
 
 if __name__ == "__main__":
     app.run(debug=True)
