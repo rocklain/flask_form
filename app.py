@@ -2,6 +2,8 @@ from flask import Flask, render_template, url_for, redirect, session, flash, req
 from flask_wtf import FlaskForm
 from wtforms import ValidationError, StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo
+from flask_login import LoginManager, UserMixin, login_user
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -23,6 +25,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 Migrate(app, db)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
 
 @event.listens_for(Engine, "connect")
@@ -32,7 +37,12 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 
-class User(db.Model):
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(user_id)
+
+
+class User(db.Model, UserMixin):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -50,6 +60,9 @@ class User(db.Model):
 
     def __repr__(self):
         return f"UserName: {self.username}"
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 
 class BlogPost(db.Model):
@@ -71,6 +84,13 @@ class BlogPost(db.Model):
 
     def __repr__(self):
         return f"PostID: {self.id}, Title: {self.title}, Author: {self.author} \n"
+
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[
+                        DataRequired(), Email(message="正しいメールアドレスを入力してください")])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('ログイン')
 
 
 class RegistrationForm(FlaskForm):
@@ -111,6 +131,26 @@ class UpdateUserForm(FlaskForm):
     def validate_username(self, field):
         if User.query.filter(User.id != self.id).filter_by(username=field.data).first():
             raise ValidationError('入力されたユーザー名は既に登録されています。')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user is not None:
+            if user.check_password(form.password.data):
+                login_user(user)
+                next = request.args.get('next')
+                if next == None or not next[0] == '/':
+                    next = url_for('user_maintenance')
+                return redirect(next)
+            else:
+                flash('パスワードが一致しません')
+        else:
+            flash('入力されたユーザーは存在しません')
+        
+    return render_template('login.html', form=form)
 
 
 @app.route('/register', methods=["GET", "POST"])
@@ -154,6 +194,7 @@ def account(user_id):
         form.email.data = user.email
     return render_template('account.html', form=form)
 
+
 @app.route('/<int:user_id>/delete', methods=['GET', 'POST'])
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
@@ -161,6 +202,7 @@ def delete_user(user_id):
     db.session.commit()
     flash('ユーザーアカウントが削除されました')
     return redirect(url_for('user_maintenance'))
+
 
 if __name__ == "__main__":
     app.run(debug=True)
