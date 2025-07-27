@@ -9,6 +9,8 @@
     </div>
   </div>
 </header>
+
+{% if current_user.is_administrator() %}
 <section id="menu">
   <div class="container my-3 py-3 bg-light">
     <div class="row">
@@ -20,6 +22,7 @@
     </div>
   </div>
 </section>
+{% endif %}
 
 <section id="list">
   <div class="container my-3">
@@ -48,7 +51,10 @@
                 <td>{{ user.email }}</td>
                 <td>{{ user.administrator }}</td>
                 <td><a href="#">ブログ投稿数</a></td>
-                <td><a href="{{ url_for('account',user_id=user.id) }}" class="btn btn-secondary"> 変更 </a></td>
+                <td>
+                  {% if current_user.is_administrator() or current_user.id == user.id %}
+                  <a href="{{ url_for('account',user_id=user.id) }}" class="btn btn-secondary"> 変更 </a></td>
+                  {% endif %}
               </tr>
               {% endfor %}
             </tbody>

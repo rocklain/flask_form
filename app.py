@@ -1,8 +1,8 @@
-from flask import Flask, render_template, url_for, redirect, session, flash, request
+from flask import Flask, render_template, url_for, redirect, session, flash, request, abort
 from flask_wtf import FlaskForm
 from wtforms import ValidationError, StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from sqlalchemy import event
@@ -29,8 +29,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-def localize_callback(*args,**kwargs):
+
+def localize_callback(*args, **kwargs):
     return 'このページにアクセスするにはログインが必要です'
+
+
 login_manager.localize_callback = localize_callback
 
 
@@ -67,14 +70,20 @@ class User(db.Model, UserMixin):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-    
+
     @property
     def password(self):
         raise AttributeError('password is not a readable attribute')
-    
+
     @password.setter
-    def password(self,password):
+    def password(self, password):
         self.password_hash = generate_password_hash(password)
+
+    def is_administrator(self):
+        if self.administrator == "1":
+            return 1
+        else:
+            return 0
 
 
 class BlogPost(db.Model):
@@ -145,6 +154,16 @@ class UpdateUserForm(FlaskForm):
             raise ValidationError('入力されたユーザー名は既に登録されています。')
 
 
+@app.errorhandler(403)
+def error_404(error):
+    return render_template('error_pages/403.html'), 403
+
+
+@app.errorhandler(404)
+def error_404(error):
+    return render_template('error_pages/404.html'), 404
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
@@ -161,8 +180,9 @@ def login():
                 flash('パスワードが一致しません')
         else:
             flash('入力されたユーザーは存在しません')
-        
+
     return render_template('login.html', form=form)
+
 
 @app.route('/logout')
 @login_required
@@ -170,10 +190,13 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+
 @app.route('/register', methods=["GET", "POST"])
 @login_required
 def register():
     form = RegistrationForm()
+    if not current_user.is_administrator():
+        abort(403)
     if form.validate_on_submit():
         # session["email"] = form.email.data
         # session["username"] = form.username.data
@@ -200,6 +223,8 @@ def user_maintenance():
 @login_required
 def account(user_id):
     user = User.query.get_or_404(user_id)
+    if user.id != current_user.id and not current_user.is_administrator():
+        abort(403)
     form = UpdateUserForm(user_id)
     if form.validate_on_submit():
         user.username = form.username.data
@@ -219,6 +244,11 @@ def account(user_id):
 @login_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
+    if not current_user.is_administrator():
+        abort(403)
+    if user.is_administrator():
+        flash('管理者は削除できません')
+        return redirect(url_for('account', user_id=user_id))
     db.session.delete(user)
     db.session.commit()
     flash('ユーザーアカウントが削除されました')
